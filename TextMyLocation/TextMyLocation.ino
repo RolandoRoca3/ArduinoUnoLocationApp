@@ -106,6 +106,8 @@ void loop() {
         int8_t smsnum = fona.getNumSMS();
         uint16_t smslen;
         int8_t smsn;
+        
+        char sendto[21];
 
         if ( (type == FONA3G_A) || (type == FONA3G_E) ) {
           smsn = 0; // zero indexed
@@ -132,7 +134,7 @@ void loop() {
           Serial.print(F("***** SMS #")); Serial.print(smsn);
           Serial.print(" ("); Serial.print(smslen); Serial.println(F(") bytes *****"));
           Serial.println(replybuffer);
-          if ((replybuffer.substring(1) == "where")||(replybuffer.substring(1) == "are")||(replybuffer.substring(1) == "r")){
+          if ((replybuffer.substring(1) == "where")||(replybuffer.substring(1) == " are")||(replybuffer.substring(1) == " r")){
 
               // check for GPS location
               char gpsdata[120];
@@ -142,16 +144,20 @@ void loop() {
               else 
                 Serial.println(F("Reply in format: mode,fixstatus,utctime(yyyymmddHHMMSS),latitude,longitude,altitude,speed,course,fixmode,reserved1,HDOP,PDOP,VDOP,reserved2,view_satellites,used_satellites,reserved3,C/N0max,HPA,VPA"));
               Serial.println(gpsdata);
+              
               // now need to parse Lat,Long to concatenate with locationurl
-              {}
+              locationurl= locationurl + (gpsdata.substring(23, 32)) + (gpsdata.substring(32, 44)); 
+
+              //debug print of message to be sent over sms 
+              Serial.println(F("The following message will be sent over sms: ")); Serial.println(locationurl);
         
-        /**Need to finish the URL concatenation once we have the location from GPS*/
+        
               // send an SMS with the location URL!
               flushSerial();
               Serial.print(F("Sending sms to #: "));Serial.print(smsn);
               
-              Serial.println(message);
-              if (!fona.sendSMS(sendto, message)) {
+              // Original print for the message to be sent: Serial.println(message);
+              if (!fona.sendSMS(sendto, locationurl)) {
                 Serial.println(F("Failed"));
               } else {
                 Serial.println(F("Sent!"));
