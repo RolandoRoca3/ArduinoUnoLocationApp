@@ -32,7 +32,7 @@ Authors: Monte Windsor and Rolando Roca
 char replybuffer[255];
 
 //this is the buffer for the URL with location information
-char locationurl[255];
+char locationurl[141];
 
 // We default to using software serial. If you want to use hardware serial
 // (because softserial isnt supported) comment out the following three lines 
@@ -53,6 +53,7 @@ uint8_t type;
 
 
 void setup() {
+  delay(10000);
     // put your setup code here, to run once:
   while (!Serial);
 
@@ -92,11 +93,11 @@ void setup() {
   if (imeiLen > 0) {
     Serial.print("Module IMEI: "); Serial.println(imei);
   }
-  
+  delay(5000);
   // turn GPS on
   if (!fona.enableGPS(true))
     Serial.println(F("Failed to turn on"));
-    
+  delay(60000);  
 }
 
 void loop() {
@@ -117,7 +118,6 @@ void loop() {
         }
 
         for ( ; smsn <= smsnum; smsn++) {
-          locationurl="https://maps.google.com/?q=";
           Serial.print(F("\n\rReading SMS #")); Serial.println(smsn);
           if (!fona.readSMS(smsn, replybuffer, 250, &smslen)) {  // pass in buffer and max len!
             Serial.println(F("Failed!"));
@@ -134,7 +134,9 @@ void loop() {
           Serial.print(F("***** SMS #")); Serial.print(smsn);
           Serial.print(" ("); Serial.print(smslen); Serial.println(F(") bytes *****"));
           Serial.println(replybuffer);
-          if ((replybuffer.substring(1) == "where")||(replybuffer.substring(1) == " are")||(replybuffer.substring(1) == " r")){
+          // possible conditional for checking if the text is asking for location: 
+          // (replybuffer.substring(1) == "where")||(replybuffer.substring(1) == " are")||(replybuffer.substring(1) == " r")
+          if (true){
 
               // check for GPS location
               char gpsdata[120];
@@ -146,25 +148,99 @@ void loop() {
               Serial.println(gpsdata);
               
               // now need to parse Lat,Long to concatenate with locationurl
-              locationurl= locationurl + (gpsdata.substring(23, 32)) + (gpsdata.substring(32, 44)); 
+              //gpsdata
 
+                String MessageInfo("");
+                MessageInfo = String(MessageInfo + gpsdata);
+                Serial.println("MessageInfo");
+                Serial.println(MessageInfo);
+              
+                Serial.println("GPS State");
+                Serial.println(getValue(MessageInfo,',',1));
+                Serial.println("Latitude");
+                Serial.println(getValue(MessageInfo,',',3));
+                Serial.println("Longitude");
+                Serial.println(getValue(MessageInfo,',',4));
+              
+                String UrlToSend = String("https://www.google.com/maps/search/?api=1&query=" + getValue(MessageInfo,',',3));
+                UrlToSend = String(UrlToSend + ",");
+                UrlToSend = String(UrlToSend+ getValue(MessageInfo,',',4));
+              
+                Serial.println("Formatted URL");
+                Serial.println(UrlToSend);
+                
+                Serial.println("Desired URL Format");
+                Serial.println("https://www.google.com/maps/search/?api=1&query=47.5951518,-122.3316393");
+              
+              // Length (with one extra character for the null terminator)
+              int UrlLength = UrlToSend.length() + 1; 
+               
+              // Prepare the character array (the buffer) 
+              char locationurl[UrlLength];
+               
+              // Copy it over 
+              UrlToSend.toCharArray(locationurl, UrlLength);
+              
+                Serial.println("Formatted URL - Char");
+                Serial.println(locationurl);
+                            
               //debug print of message to be sent over sms 
-              Serial.println(F("The following message will be sent over sms: ")); Serial.println(locationurl);
+              Serial.println(F("The following message will be sent over sms: ")); Serial.println(F("Test Response - in place of locationurl"));
         
+              // Retrieve SMS sender address/phone number.
+              if (! fona.getSMSSender(smsn, replybuffer, 250)) {
+                Serial.println("Failed!");
+                break;
+              }
+              memcpy(sendto,replybuffer,21);           
+              Serial.print(F("FROM: ")); Serial.println(sendto); 
         
               // send an SMS with the location URL!
               flushSerial();
-              Serial.print(F("Sending sms to #: "));Serial.print(smsn);
+              Serial.print(F("Sending sms to #: "));Serial.print(sendto);
+
+
               
-              // Original print for the message to be sent: Serial.println(message);
+              // Original print for the message to be sent to 'sendto' number: Serial.println(message);
               if (!fona.sendSMS(sendto, locationurl)) {
                 Serial.println(F("Failed"));
               } else {
                 Serial.println(F("Sent!"));
+             
+
+              Serial.print(F("\n\rDeleting SMS #")); Serial.println(smsn);
+              if (fona.deleteSMS(smsn)) {
+                Serial.println(F("OK!"));
+              } else {
+                Serial.println(F("Couldn't delete"));
               }
             }
           Serial.println(F("*****"));
         }
-       
+        }
+delay(10000);
+}
 
+// This code is from: https://stackoverflow.com/questions/9072320/split-string-into-string-array
+String getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length()-1;
+
+  for(int i=0; i<=maxIndex && found<=index; i++){
+    if(data.charAt(i)==separator || i==maxIndex){
+        found++;
+        strIndex[0] = strIndex[1]+1;
+        strIndex[1] = (i == maxIndex) ? i+1 : i;
+    }
+  }
+
+  return found>index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
+
+void flushSerial() {
+  while (Serial.available())
+    Serial.read();
 }
